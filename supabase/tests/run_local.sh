@@ -14,5 +14,6 @@ for f in supabase/migrations/*.sql; do
   psql "$TEST_URL" -v ON_ERROR_STOP=1 -q -f "$f"
 done
 psql "$TEST_URL" -v ON_ERROR_STOP=1 -q -f supabase/tests/01_commercial_flow.sql
+psql "$TEST_URL" -v ON_ERROR_STOP=1 -q -f supabase/tests/03_supplier_quotes_documents.sql
 bash supabase/tests/02_concurrency.sh "$TEST_URL"
 echo "All database tests passed."

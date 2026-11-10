@@ -10,9 +10,34 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { DocRef } from "@/components/doc-ref";
 import { cn, formatDate, formatMoney, formatRevision } from "@/lib/utils";
-import { lineTotal, toMoney } from "@/lib/money";
-import { addLine, approveRevision, newRevision, removeLine } from "../actions";
-import { AddLineForm, ApproveForm, NewRevisionForm } from "./quote-forms";
+import { lineTotal, marginPercent, toMoney } from "@/lib/money";
+import Decimal from "decimal.js";
+import { FileUpload } from "@/components/documents/file-upload";
+import { DocumentList, type DocumentRow } from "@/components/documents/document-list";
+import { addLine, addSupplierQuote, approveRevision, newRevision, removeLine, renumberQuotation, setSupplierQuoteStatus } from "../actions";
+import { AddLineForm, ApproveForm, NewRevisionForm, RenumberForm, SupplierQuoteForm } from "./quote-forms";
+
+const SQ_LABEL: Record<string, string> = {
+  received: "Received",
+  selected: "Selected",
+  not_selected: "Not selected",
+  expired: "Expired",
+  withdrawn: "Withdrawn",
+};
+
+type SupplierQuote = {
+  id: string;
+  supplier_quote_number: string;
+  quote_date: string | null;
+  valid_until: string | null;
+  currency: string;
+  total_amount: string | null;
+  freight: string;
+  lead_time: string | null;
+  notes: string | null;
+  status: string;
+  suppliers: { id: string; display_name: string; supplier_code: string } | null;
+};
 
 export default async function QuotationPage({
   params,
@@ -47,6 +72,37 @@ export default async function QuotationPage({
     .select("id, order_number, status")
     .eq("source_quotation_id", id)
     .maybeSingle();
+
+  const seeCosts = can(user.role, "costs.view");
+  const path = `/quotations/${id}`;
+  const [docs, history, supplierQuotes, suppliers] = await Promise.all([
+    supabase.from("documents").select("id, file_name, category, size_bytes, uploaded_at").eq("quotation_id", id).is("supplier_quote_id", null).order("uploaded_at"),
+    supabase.from("quotation_number_history").select("*").eq("quotation_id", id).order("changed_at"),
+    seeCosts
+      ? supabase
+          .from("supplier_quotes")
+          .select("id, supplier_quote_number, quote_date, valid_until, currency, total_amount, freight, lead_time, notes, status, suppliers(id, display_name, supplier_code)")
+          .eq("quotation_id", id)
+          .order("created_at")
+      : Promise.resolve({ data: [] as SupplierQuote[] }),
+    seeCosts
+      ? supabase.from("suppliers").select("id, supplier_code, display_name, currency").neq("status", "inactive").order("display_name")
+      : Promise.resolve({ data: [] }),
+  ]);
+  const sqList = (supplierQuotes.data ?? []) as unknown as SupplierQuote[];
+  const sqDocs = sqList.length
+    ? ((await supabase.from("documents").select("id, file_name, category, size_bytes, uploaded_at, supplier_quote_id").in("supplier_quote_id", sqList.map((x) => x.id)).order("uploaded_at")).data ?? [])
+    : [];
+  const canDeleteFiles = ["super_admin", "director"].includes(user.role);
+  const anyLocked = revisions.some((r) => r.is_locked);
+  const canRenumber = can(user.role, "quotes.approve") && !anyLocked && ["draft", "under_review"].includes(q.status);
+
+  // Cost of the supplier quotations marked Selected, in the quotation currency.
+  const selected = sqList.filter((x) => x.status === "selected");
+  const sameCurrency = selected.every((x) => x.currency === q.currency);
+  const selectedCost = selected.reduce((sum, x) => sum.plus(x.total_amount ?? 0).plus(x.freight ?? 0), new Decimal(0));
+  const sell = new Decimal(current.subtotal ?? 0);
+  const margin = selected.length && sameCurrency && sell.gt(0) ? marginPercent(selectedCost, sell).toFixed(1) : null;
 
   const customer = q.customers as { id: string; display_name: string; customer_code: string };
   const editable = isCurrent && !shown.is_locked && can(user.role, "quotes.create");
@@ -171,9 +227,131 @@ export default async function QuotationPage({
               </div>
             ) : null}
           </Panel>
+
+          <Panel>
+            <PanelHeader title="Files" description="Customer RFQs, drawings, specifications and anything else for this quotation" />
+            <div className="flex flex-col gap-4 px-5 py-4">
+              <DocumentList docs={(docs.data ?? []) as DocumentRow[]} canDelete={canDeleteFiles} revalidate={path} />
+              <FileUpload target="quotation" recordId={id} revalidate={path} defaultCategory="customer_rfq" />
+            </div>
+          </Panel>
+
+          {seeCosts ? (
+            <Panel>
+              <PanelHeader
+                title="Supplier quotations"
+                description="What suppliers quoted ANASA for this job. Internal only: never shown to the customer or on customer documents."
+              />
+              {selected.length ? (
+                <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-line bg-surface-2 px-5 py-3 text-sm">
+                  <span>
+                    <span className="text-muted">Selected cost </span>
+                    <span className="font-medium tabular-nums">{sameCurrency ? formatMoney(selectedCost.toFixed(2), q.currency) : "Mixed currencies"}</span>
+                  </span>
+                  <span>
+                    <span className="text-muted">Selling price ({formatRevision(current.revision_no)}) </span>
+                    <span className="font-medium tabular-nums">{formatMoney(current.subtotal, q.currency)}</span>
+                  </span>
+                  <span>
+                    <span className="text-muted">Gross margin </span>
+                    <span className={cn("font-semibold tabular-nums", margin !== null && Number(margin) < 0 ? "text-danger" : "text-ok")}>
+                      {margin !== null ? `${margin}%` : "—"}
+                    </span>
+                  </span>
+                </div>
+              ) : null}
+              <ul className="divide-y divide-line">
+                {sqList.map((sq) => (
+                  <li key={sq.id} className="flex flex-col gap-3 px-5 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 text-sm">
+                        <p className="font-medium">
+                          {sq.suppliers?.display_name} <span className="text-muted">quote {sq.supplier_quote_number}</span>
+                        </p>
+                        <p className="text-muted">
+                          {[
+                            sq.quote_date ? `Dated ${formatDate(sq.quote_date)}` : null,
+                            sq.valid_until ? `valid until ${formatDate(sq.valid_until)}` : null,
+                            sq.lead_time ? `lead time ${sq.lead_time}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(", ") || "No dates recorded"}
+                        </p>
+                        {sq.notes ? <p className="mt-1 text-muted">{sq.notes}</p> : null}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold tabular-nums">{formatMoney(sq.total_amount, sq.currency)}</p>
+                        {Number(sq.freight) ? <p className="text-xs text-muted">+ {formatMoney(sq.freight, sq.currency)} freight</p> : null}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted">Status</span>
+                      {(["received", "selected", "not_selected"] as const).map((st) => (
+                        <form key={st} action={setSupplierQuoteStatus.bind(null, id, sq.id, st)}>
+                          <button
+                            type="submit"
+                            aria-pressed={sq.status === st}
+                            className={cn(
+                              "h-7 rounded-full border px-3 text-xs",
+                              sq.status === st ? "border-accent bg-accent-soft font-medium text-accent" : "border-line text-muted hover:text-fg",
+                            )}
+                          >
+                            {SQ_LABEL[st]}
+                          </button>
+                        </form>
+                      ))}
+                    </div>
+                    <div className="rounded-[var(--radius-control)] border border-line px-3 py-2">
+                      <DocumentList
+                        docs={sqDocs.filter((d) => d.supplier_quote_id === sq.id) as DocumentRow[]}
+                        canDelete={canDeleteFiles}
+                        revalidate={path}
+                        empty="No supplier PDF attached yet."
+                      />
+                      <div className="mt-2">
+                        <FileUpload target="supplier_quote" recordId={sq.id} revalidate={path} showCategory={false} label="Attach supplier PDF" />
+                      </div>
+                    </div>
+                  </li>
+                ))}
+                {!sqList.length ? <li className="px-5 py-4 text-sm text-muted">No supplier quotations recorded for this job yet.</li> : null}
+              </ul>
+              <div className="border-t border-line px-5 py-4">
+                <SupplierQuoteForm
+                  action={addSupplierQuote.bind(null, id)}
+                  suppliers={(suppliers.data ?? []) as { id: string; supplier_code: string; display_name: string; currency: string }[]}
+                  currency={q.currency}
+                />
+              </div>
+            </Panel>
+          ) : null}
         </div>
 
         <aside className="flex flex-col gap-6">
+          <Panel className="p-5 text-sm">
+            <p className="text-muted">Quotation number</p>
+            <p className="mt-1 break-all text-base font-semibold">{q.quote_number}</p>
+            {q.is_manual_number ? <p className="mt-1 text-xs text-muted">Set by hand</p> : null}
+            {canRenumber ? (
+              <div className="mt-3">
+                <RenumberForm action={renumberQuotation.bind(null, id)} current={q.quote_number} />
+              </div>
+            ) : anyLocked ? (
+              <p className="mt-2 text-xs text-muted">Permanent: a revision has been approved.</p>
+            ) : null}
+            {history.data && history.data.length > 1 ? (
+              <ol className="mt-4 border-t border-line pt-3">
+                {history.data.map((h) => (
+                  <li key={h.id} className="py-1 text-xs text-muted">
+                    {formatDate(h.changed_at)}: {h.old_number ? `${h.old_number} to ` : ""}
+                    <span className="text-fg">{h.new_number}</span>
+                    {h.reason ? `, ${h.reason}` : ""}
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+          </Panel>
+
           <Panel className="p-5 text-sm">
             <dl className="flex flex-col gap-3">
               {[

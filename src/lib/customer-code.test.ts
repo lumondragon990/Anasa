@@ -27,3 +27,20 @@ describe("suggestCustomerCode", () => {
     alts.forEach((a) => expect(a).toMatch(CODE_PATTERN));
   });
 });
+
+import { rfcIssue, normalizeTaxId } from "./validation/customer";
+
+describe("RFC validation", () => {
+  it("accepts company and individual RFCs for Mexican customers", () => {
+    expect(rfcIssue("ANA120101AB1", "Mexico")).toBeNull();
+    expect(rfcIssue("GODE561231GR8", "México")).toBeNull();
+    expect(rfcIssue(normalizeTaxId("ana-120101-ab1"), "MX")).toBeNull();
+  });
+  it("rejects malformed RFCs for Mexican customers", () => {
+    expect(rfcIssue("12345", "Mexico")).toMatch(/RFC/);
+  });
+  it("does not apply RFC rules outside Mexico", () => {
+    expect(rfcIssue("12-3456789", "USA")).toBeNull();
+    expect(rfcIssue("12-3456789", null)).toBeNull();
+  });
+});

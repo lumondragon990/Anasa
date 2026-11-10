@@ -56,3 +56,22 @@ export const changeCodeSchema = z.object({
   new_code: customerCodeSchema,
   reason: requiredText("Reason", 500),
 });
+
+const MEXICO = /^(mx|mex|mexico|méxico)$/i;
+
+/** RFC: 3 letters (companies) or 4 (individuals), YYMMDD, 3-character homoclave. */
+export const RFC_PATTERN = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+
+/** Returns an error message when a Mexican customer's RFC is malformed. */
+export function rfcIssue(taxId: string | null, country: string | null): string | null {
+  if (!taxId) return null;
+  const value = taxId.toUpperCase().replace(/[\s-]/g, "");
+  if (country && MEXICO.test(country.trim()) && !RFC_PATTERN.test(value)) {
+    return "RFC should be 12 characters for a company (e.g. ANA120101AB1) or 13 for a person";
+  }
+  return null;
+}
+
+export function normalizeTaxId(taxId: string | null) {
+  return taxId ? taxId.toUpperCase().replace(/[\s-]/g, "") : null;
+}

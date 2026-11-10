@@ -17,6 +17,12 @@ const TYPE_LABEL: Record<string, string> = {
 
 export function DocRef({ value, size = "md", className }: { value: string; size?: "sm" | "md" | "lg"; className?: string }) {
   const parts = value.split("-");
+  const standard = /^ANA-[A-Z0-9]{2,6}-(Q|P)-\d{4}-\d{4,}$/.test(value) || /^ANA-(REQ|SRFQ|SPO|SVC)-\d{4}-\d{5,}$/.test(value);
+  if (!standard) {
+    // Numbers set by hand (e.g. carried over from an older system) are shown as typed.
+    const plain = { sm: "text-[13px]", md: "text-sm", lg: "text-xl" } as const;
+    return <span className={cn("whitespace-nowrap font-semibold tabular-nums", plain[size], className)}>{value}</span>;
+  }
   const isCustomerDoc = parts.length === 5; // ANA-ABC-Q-2026-0001
   const [prefix, ...rest] = parts;
   const code = isCustomerDoc ? rest[0] : null;

@@ -36,6 +36,10 @@ const STATUS_TONE: Record<string, Tone> = {
   superseded: "neutral",
   open: "accent",
   po_mismatch_review: "danger",
+  received: "accent",
+  selected: "ok",
+  not_selected: "neutral",
+  withdrawn: "neutral",
 };
 
 export function StatusBadge({ status }: { status: string }) {

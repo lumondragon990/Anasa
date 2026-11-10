@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import { PageHeader, Panel, PanelHeader } from "@/components/ui/panel";
 import { buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
+import { formatMoney } from "@/lib/utils";
 import { AddContactForm } from "@/app/(app)/customers/[id]/detail-forms";
 import { addCapability, addSupplierContact, removeCapability, removeSupplierContact } from "../actions";
 import { CapabilityForm } from "./capability-form";
@@ -23,6 +24,13 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
     supabase.from("supplier_capabilities").select("*").eq("supplier_id", id).order("value"),
   ]);
   if (!s) notFound();
+  const { data: sqs } = can(user.role, "costs.view")
+    ? await supabase
+        .from("supplier_quotes")
+        .select("id, supplier_quote_number, quote_date, currency, total_amount, status, quotations(id, quote_number, title)")
+        .eq("supplier_id", id)
+        .order("created_at", { ascending: false })
+    : { data: null };
   const canWrite = can(user.role, "suppliers.write");
   const grouped = Object.keys(KIND_LABEL).map((k) => ({ kind: k, items: (caps.data ?? []).filter((c) => c.kind === k) }));
 
@@ -72,6 +80,38 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
               {canWrite ? <CapabilityForm action={addCapability.bind(null, id)} /> : null}
             </div>
           </Panel>
+
+          {sqs ? (
+            <Panel>
+              <PanelHeader title="Quotations from this supplier" description="Internal pricing, visible only to roles that can see costs" />
+              <ul className="divide-y divide-line">
+                {sqs.map((x) => {
+                  const q = x.quotations as unknown as { id: string; quote_number: string; title: string } | null;
+                  return (
+                    <li key={x.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium">Quote {x.supplier_quote_number}</p>
+                        <p className="text-muted">
+                          {q ? (
+                            <Link href={`/quotations/${q.id}`} className="hover:underline">
+                              For {q.quote_number}, {q.title}
+                            </Link>
+                          ) : (
+                            "Not linked to a customer quotation"
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <StatusBadge status={x.status} />
+                        <span className="font-medium tabular-nums">{formatMoney(x.total_amount, x.currency)}</span>
+                      </div>
+                    </li>
+                  );
+                })}
+                {!sqs.length ? <li className="px-5 py-4 text-sm text-muted">None recorded yet. Record them from a customer quotation.</li> : null}
+              </ul>
+            </Panel>
+          ) : null}
 
           <Panel>
             <PanelHeader title="Contacts" />

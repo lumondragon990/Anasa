@@ -34,12 +34,13 @@ Keep the repository **private**. The `.gitignore` already excludes `.env.local` 
 ## 3. Create the Supabase project and database
 
 1. In Supabase, create a new project. Pick the region closest to your users and save the database password.
-2. Apply the three migrations in `supabase/migrations/` **in filename order**. Use one of these two methods.
+2. Apply the migrations in `supabase/migrations/` **in filename order**. Use one of these two methods.
 
    **Method A, the SQL Editor (no tools needed).** Open Supabase → SQL Editor → New query. Paste the contents of each file, run it, then do the next:
    - `20261110000001_foundation.sql`
    - `20261110000002_commercial_core.sql`
    - `20261110000003_security.sql`
+   - `20261111000004_supplier_quotes_documents.sql`: manual quote numbers, supplier quotations, file storage. This one also creates the private `documents` Storage bucket and its access rules.
 
    **Method B, the Supabase CLI:**
    ```bash

@@ -220,6 +220,11 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             <p className="mt-2 text-xs text-muted">
               New quotations are numbered ANA-{c.customer_code}-Q-YYYY-NNNN. Documents already issued keep the code they were issued with.
             </p>
+            {c.customer_code === "ANA" ? (
+              <p className="mt-3 rounded-[var(--radius-control)] bg-warn-soft px-3 py-2 text-xs text-warn">
+                ANA is also the ANASA prefix, so numbers read ANA-ANA-Q-…. Change this code (e.g. to ART) before issuing quotations.
+              </p>
+            ) : null}
             {can(user.role, "customers.changeCode") ? (
               <ChangeCodeForm action={changeCustomerCode.bind(null, id)} current={c.customer_code} />
             ) : null}
@@ -232,7 +237,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
               <Detail label="Email" value={c.email} />
               <Detail label="Phone" value={c.phone} />
               <Detail label="Website" value={c.website} />
-              <Detail label="Tax ID" value={c.tax_id} />
+              <Detail label="RFC" value={c.tax_id} />
               <Detail label="Billing address" value={address} multiline />
             </dl>
             {c.notes ? <p className="mt-4 whitespace-pre-line border-t border-line pt-4 text-muted">{c.notes}</p> : null}

@@ -6,11 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 import { requireCapability } from "@/lib/auth";
 import { codeAlternatives, suggestCustomerCode } from "@/lib/customer-code";
 import {
-  changeCodeSchema, contactSchema, customerSchema, locationSchema, newCustomerSchema,
+  changeCodeSchema, contactSchema, customerSchema, locationSchema, newCustomerSchema, normalizeTaxId, rfcIssue,
 } from "@/lib/validation/customer";
 import { formToObject, zodErrorState, type ActionState } from "@/lib/validation/shared";
 
 function dbMessage(error: { message: string; code?: string }) {
+  if (/document prefix/.test(error.message)) return "ANA is the ANASA document prefix and can't be a customer code. Use another code, e.g. ART.";
   if (error.code === "23505" || /already been issued|customers_code_unique/.test(error.message)) {
     return "That customer code is already in use or was issued to another company before. Choose a different code.";
   }
@@ -42,6 +43,9 @@ export async function createCustomer(_: ActionState, formData: FormData): Promis
   await requireCapability("customers.write");
   const parsed = newCustomerSchema.safeParse(formToObject(formData));
   if (!parsed.success) return zodErrorState(parsed.error);
+  const rfc = rfcIssue(parsed.data.tax_id, parsed.data.billing_country);
+  if (rfc) return { ok: false, message: "Check the highlighted fields.", fieldErrors: { tax_id: [rfc] } };
+  parsed.data.tax_id = normalizeTaxId(parsed.data.tax_id);
 
   const supabase = await createClient();
   const { data, error } = await supabase.from("customers").insert(parsed.data).select("id").single();
@@ -57,6 +61,9 @@ export async function updateCustomer(id: string, _: ActionState, formData: FormD
   await requireCapability("customers.write");
   const parsed = customerSchema.safeParse(formToObject(formData));
   if (!parsed.success) return zodErrorState(parsed.error);
+  const rfc = rfcIssue(parsed.data.tax_id, parsed.data.billing_country);
+  if (rfc) return { ok: false, message: "Check the highlighted fields.", fieldErrors: { tax_id: [rfc] } };
+  parsed.data.tax_id = normalizeTaxId(parsed.data.tax_id);
 
   const supabase = await createClient();
   const { error } = await supabase.from("customers").update(parsed.data).eq("id", id);

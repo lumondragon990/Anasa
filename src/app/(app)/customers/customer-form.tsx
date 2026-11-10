@@ -56,8 +56,8 @@ export function CustomerForm({
         <Field label="Currency" name="currency" error={e.currency}>
           <Input name="currency" defaultValue={v("currency") || "USD"} maxLength={3} className="uppercase" />
         </Field>
-        <Field label="Tax ID" name="tax_id" error={e.tax_id}>
-          <Input name="tax_id" defaultValue={v("tax_id")} />
+        <Field label="RFC" name="tax_id" hint="Mexican tax ID, e.g. ANA120101AB1. For customers outside Mexico, enter their tax ID." error={e.tax_id}>
+          <Input name="tax_id" defaultValue={v("tax_id")} maxLength={20} className="uppercase" />
         </Field>
       </Section>
 
@@ -127,7 +127,13 @@ function CompanyFields({
     if (!code) return;
     startTransition(async () => {
       const free = await checkCodeAvailable(code);
-      setCodeNote(free ? `${code} is available.` : `${code} is already issued. Choose another code.`);
+      setCodeNote(
+        code === "ANA"
+          ? "ANA is the ANASA document prefix. Choose another code."
+          : free
+            ? `${code} is available.`
+            : `${code} is already issued. Choose another code.`,
+      );
     });
   }
 

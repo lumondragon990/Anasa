@@ -5,11 +5,12 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireCapability } from "@/lib/auth";
-import { newQuotationSchema } from "@/lib/validation/quotation";
+import { newQuotationSchema, quoteNumberSchema, supplierQuoteSchema } from "@/lib/validation/quotation";
 import { formToObject, optionalText, requiredText, zodErrorState, type ActionState } from "@/lib/validation/shared";
 
 function dbMessage(error: { message: string; code?: string }) {
   if (error.code === "42501") return "You do not have permission to do this.";
+  if (error.code === "23505") return error.message.includes("already in use") ? error.message : "That number is already in use.";
   return error.message;
 }
 
@@ -25,6 +26,8 @@ export async function createQuotation(_: ActionState, formData: FormData): Promi
     p_title: parsed.data.title,
     p_customer_reference: parsed.data.customer_reference,
     p_valid_until: parsed.data.valid_until,
+    p_manual_number: parsed.data.manual_number,
+    p_manual_reason: parsed.data.manual_reason,
   });
   if (error) return { ok: false, message: dbMessage(error) };
   revalidatePath("/quotations");
@@ -104,4 +107,53 @@ export async function newRevision(quotationId: string, _: ActionState, formData:
   if (error) return { ok: false, message: dbMessage(error) };
   revalidatePath(`/quotations/${quotationId}`);
   return { ok: true, message: "New revision created from the approved one." };
+}
+
+// ---------------------------------------------------------------------------
+// Quote numbers set or changed by hand
+// ---------------------------------------------------------------------------
+export async function renumberQuotation(quotationId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  await requireCapability("quotes.approve");
+  const parsed = z
+    .object({ new_number: quoteNumberSchema, reason: requiredText("Reason", 500) })
+    .safeParse(formToObject(formData));
+  if (!parsed.success) return zodErrorState(parsed.error);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("renumber_quotation", {
+    p_quotation_id: quotationId,
+    p_new_number: parsed.data.new_number,
+    p_reason: parsed.data.reason,
+  });
+  if (error) return { ok: false, message: dbMessage(error) };
+  revalidatePath(`/quotations/${quotationId}`);
+  revalidatePath("/quotations");
+  return { ok: true, message: `Number changed to ${parsed.data.new_number}.` };
+}
+
+// ---------------------------------------------------------------------------
+// Supplier quotations (cost-restricted)
+// ---------------------------------------------------------------------------
+export async function addSupplierQuote(quotationId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  await requireCapability("costs.view");
+  const parsed = supplierQuoteSchema.safeParse(formToObject(formData));
+  if (!parsed.success) return zodErrorState(parsed.error);
+  const supabase = await createClient();
+  const { error } = await supabase.from("supplier_quotes").insert({ ...parsed.data, quotation_id: quotationId });
+  if (error) {
+    if (error.code === "23505") return { ok: false, fieldErrors: { supplier_quote_number: ["This supplier quote number is already recorded for that supplier."] } };
+    return { ok: false, message: dbMessage(error) };
+  }
+  revalidatePath(`/quotations/${quotationId}`);
+  return { ok: true, message: "Supplier quotation recorded. Use Attach supplier PDF to add their file." };
+}
+
+const SQ_STATUSES = ["received", "selected", "not_selected", "expired", "withdrawn"] as const;
+
+export async function setSupplierQuoteStatus(quotationId: string, supplierQuoteId: string, status: (typeof SQ_STATUSES)[number]) {
+  await requireCapability("costs.view");
+  if (!SQ_STATUSES.includes(status)) throw new Error("Invalid status");
+  const supabase = await createClient();
+  const { error } = await supabase.from("supplier_quotes").update({ status }).eq("id", supplierQuoteId);
+  if (error) throw new Error(dbMessage(error));
+  revalidatePath(`/quotations/${quotationId}`);
 }

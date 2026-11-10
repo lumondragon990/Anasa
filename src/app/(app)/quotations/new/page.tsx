@@ -28,7 +28,7 @@ export default async function NewQuotationPage({ searchParams }: { searchParams:
       </PageHeader>
       <Panel className="max-w-3xl p-5 sm:p-6">
         {customers && customers.length ? (
-          <NewQuotationForm customers={customers} preselected={customer} year={(year as number) ?? new Date().getFullYear()} />
+          <NewQuotationForm customers={customers} preselected={customer} year={(year as number) ?? new Date().getFullYear()} canSetNumber={can(user.role, "quotes.approve")} />
         ) : (
           <EmptyState title="Add a customer first">
             Every quotation number carries the customer’s code.
