@@ -2,9 +2,11 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/client";
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const t = useT();
 
   useEffect(() => {
     setTheme(document.documentElement.dataset.theme === "light" ? "light" : "dark");
@@ -26,7 +28,7 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] text-rail-muted hover:bg-rail-active hover:text-rail-fg"
-      aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+      aria-label={theme === "dark" ? t.nav.toLight : t.nav.toDark}
     >
       {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
     </button>

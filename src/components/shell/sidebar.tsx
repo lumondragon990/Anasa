@@ -7,6 +7,8 @@ import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import { NAV } from "./nav";
 import { ThemeToggle } from "./theme-toggle";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { LanguageSwitch } from "./language-switch";
 
 export function Sidebar({
   userName,
@@ -20,6 +22,7 @@ export function Sidebar({
   signOut: () => Promise<void>;
 }) {
   const pathname = usePathname();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(false);
 
@@ -29,7 +32,7 @@ export function Sidebar({
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href.split("/").slice(0, 2).join("/")));
 
   const nav = (
-    <nav aria-label="Main" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
+    <nav aria-label={t.nav.mainNav} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
       <ul className="flex flex-col gap-0.5">
         {ready.map((item) => (
           <li key={item.href}>
@@ -43,7 +46,7 @@ export function Sidebar({
               )}
             >
               <item.icon className="size-4 shrink-0" />
-              {item.label}
+              {t.nav[item.label]}
             </Link>
           </li>
         ))}
@@ -56,7 +59,7 @@ export function Sidebar({
           aria-expanded={showUpcoming}
           className="flex w-full items-center justify-between px-3 text-xs text-rail-muted hover:text-rail-fg"
         >
-          On the roadmap
+          {t.nav.roadmap}
           <ChevronDown className={cn("size-3.5 transition-transform", showUpcoming && "rotate-180")} />
         </button>
         {showUpcoming ? (
@@ -65,10 +68,10 @@ export function Sidebar({
               <li
                 key={item.href}
                 className="flex h-8 items-center gap-3 px-3 text-sm text-rail-muted/70"
-                title={`Arrives in phase ${item.phase}`}
+                title={t.nav.arrivesInPhase(item.phase)}
               >
                 <item.icon className="size-4 shrink-0 opacity-60" />
-                <span className="flex-1 truncate">{item.label}</span>
+                <span className="flex-1 truncate">{t.nav[item.label]}</span>
                 <span className="text-[11px] tabular-nums">P{item.phase}</span>
               </li>
             ))}
@@ -87,7 +90,7 @@ export function Sidebar({
           type="button"
           onClick={() => setOpen(true)}
           className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] hover:bg-rail-active"
-          aria-label="Open menu"
+          aria-label={t.nav.openMenu}
         >
           <Menu className="size-5" />
         </button>
@@ -107,27 +110,31 @@ export function Sidebar({
             type="button"
             onClick={() => setOpen(false)}
             className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] hover:bg-rail-active lg:hidden"
-            aria-label="Close menu"
+            aria-label={t.nav.closeMenu}
           >
             <X className="size-4" />
           </button>
         </div>
         {nav}
-        <div className="flex items-center gap-2 border-t border-rail-line px-3 py-3">
-          <div className="min-w-0 flex-1 px-2">
+        <div className="border-t border-rail-line px-3 py-3">
+          <div className="min-w-0 px-2">
             <p className="truncate text-sm font-medium">{userName}</p>
             <p className="truncate text-xs text-rail-muted">{roleLabel}</p>
           </div>
+          <div className="mt-2 flex items-center gap-1">
+          <LanguageSwitch />
+          <span className="flex-1" />
           <ThemeToggle />
           <form action={signOut}>
             <button
               type="submit"
               className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] text-rail-muted hover:bg-rail-active hover:text-rail-fg"
-              aria-label="Sign out"
+              aria-label={t.common.signOut}
             >
               <LogOut className="size-4" />
             </button>
           </form>
+          </div>
         </div>
       </aside>
     </>

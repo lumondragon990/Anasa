@@ -8,8 +8,12 @@ import { buttonVariants } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "Suppliers" };
+export async function generateMetadata() {
+  const { t } = await getT();
+  return { title: t.suppliers.title };
+}
 
 export default async function SuppliersPage({
   searchParams,
@@ -17,6 +21,8 @@ export default async function SuppliersPage({
   searchParams: Promise<{ q?: string; kind?: string }>;
 }) {
   const user = await requireInternalUser();
+  const { t } = await getT();
+  const S = t.suppliers;
   const { q = "", kind = "" } = await searchParams;
   const supabase = await createClient();
   const term = q.trim().replace(/[%,()]/g, " ");
@@ -44,12 +50,12 @@ export default async function SuppliersPage({
   return (
     <>
       <PageHeader
-        title="Suppliers"
-        description="Manufacturers, distributors and service providers ANASA buys from. Search by name or by what they supply."
+        title={S.title}
+        description={S.description}
         actions={
           can(user.role, "suppliers.write") ? (
             <Link href="/suppliers/new" className={buttonVariants()}>
-              <Plus /> New supplier
+              <Plus /> {S.newSupplier}
             </Link>
           ) : null
         }
@@ -58,30 +64,30 @@ export default async function SuppliersPage({
         <form className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3" role="search">
           <div className="relative min-w-60 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <Input name="q" defaultValue={q} placeholder="Name, code, product, service or brand" className="pl-9" aria-label="Search suppliers" />
+            <Input name="q" defaultValue={q} placeholder={S.searchPlaceholder} className="pl-9" aria-label={S.searchAria} />
           </div>
-          <Select name="kind" defaultValue={kind} className="w-44" aria-label="Search within">
-            <option value="">Anything</option>
-            <option value="product">Products</option>
-            <option value="service">Services</option>
-            <option value="brand">Brands</option>
-            <option value="certification">Certifications</option>
+          <Select name="kind" defaultValue={kind} className="w-44" aria-label={S.within}>
+            <option value="">{S.anything}</option>
+            <option value="product">{S.products}</option>
+            <option value="service">{S.services}</option>
+            <option value="brand">{S.brands}</option>
+            <option value="certification">{S.certifications}</option>
           </Select>
           <button type="submit" className={buttonVariants({ variant: "secondary" })}>
-            Search
+            {t.common.search}
           </button>
         </form>
         {error ? (
-          <p className="px-5 py-4 text-sm text-danger">Suppliers could not be loaded: {error.message}</p>
+          <p className="px-5 py-4 text-sm text-danger">{t.errors.loadFailed(S.title, error.message)}</p>
         ) : suppliers && suppliers.length ? (
           <Table>
             <thead>
               <tr>
-                <Th className="w-24">Code</Th>
-                <Th>Supplier</Th>
-                <Th>Supplies</Th>
-                <Th>Location</Th>
-                <Th>Status</Th>
+                <Th className="w-24">{t.common.code}</Th>
+                <Th>{t.common.supplier}</Th>
+                <Th>{S.supplies}</Th>
+                <Th>{t.common.location}</Th>
+                <Th>{t.common.status}</Th>
               </tr>
             </thead>
             <tbody>
@@ -114,8 +120,8 @@ export default async function SuppliersPage({
             </tbody>
           </Table>
         ) : (
-          <EmptyState title={q ? "No suppliers match this search" : "No suppliers yet"}>
-            {q ? "Try a brand or part family instead of a part number." : "Add the suppliers you request pricing from."}
+          <EmptyState title={q ? S.noMatch : S.empty}>
+            {q ? S.noMatchBody : S.emptyBody}
           </EmptyState>
         )}
       </Panel>

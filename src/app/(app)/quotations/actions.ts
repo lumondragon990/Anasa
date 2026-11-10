@@ -157,3 +157,48 @@ export async function setSupplierQuoteStatus(quotationId: string, supplierQuoteI
   if (error) throw new Error(dbMessage(error));
   revalidatePath(`/quotations/${quotationId}`);
 }
+
+// ---------------------------------------------------------------------------
+// Customer PO received → sales order approved for sale
+// ---------------------------------------------------------------------------
+const poSchema = z.object({
+  po_number: requiredText("PO number", 80),
+  po_date: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v : null))
+    .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), "Use a valid date"),
+  po_total: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v ? v.replace(/[,$\s]/g, "") : ""))
+    .pipe(z.union([z.literal(""), z.string().regex(/^\d+(\.\d{1,2})?$/, "PO total must be an amount")]))
+    .transform((v) => (v === "" ? null : v)),
+  notes: optionalText(2000),
+  idempotency_key: z.string().uuid(),
+});
+
+export async function recordCustomerPo(quotationId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  await requireCapability("orders.convert");
+  const parsed = poSchema.safeParse(formToObject(formData));
+  if (!parsed.success) return zodErrorState(parsed.error);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("record_customer_po", {
+    p_quotation_id: quotationId,
+    p_po_number: parsed.data.po_number,
+    p_po_date: parsed.data.po_date,
+    p_po_total: parsed.data.po_total,
+    p_notes: parsed.data.notes,
+    p_idempotency_key: parsed.data.idempotency_key,
+  });
+  if (error) {
+    if (/already recorded/.test(error.message)) return { ok: false, fieldErrors: { po_number: [error.message] } };
+    return { ok: false, message: dbMessage(error) };
+  }
+  revalidatePath(`/quotations/${quotationId}`);
+  revalidatePath("/sales-orders");
+  revalidatePath("/");
+  redirect(`/sales-orders/${(data as { id: string }).id}`);
+}

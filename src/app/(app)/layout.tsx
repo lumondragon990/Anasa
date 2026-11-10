@@ -1,17 +1,19 @@
 import { Sidebar } from "@/components/shell/sidebar";
 import { requireInternalUser } from "@/lib/auth";
-import { ROLE_LABELS, can } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
+import { getT } from "@/lib/i18n/server";
 import { signOut } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireInternalUser();
+  const { t } = await getT();
   return (
     <div className="lg:flex">
       <Sidebar
         userName={user.fullName ?? user.email}
-        roleLabel={ROLE_LABELS[user.role]}
+        roleLabel={t.roles[user.role]}
         isAdmin={can(user.role, "users.manage")}
         signOut={signOut}
       />

@@ -1,4 +1,7 @@
+"use client";
+
 import { cloneElement } from "react";
+import { useTr } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 const control =
@@ -36,7 +39,8 @@ export function Field({
   className?: string;
   children: React.ReactElement<{ id?: string; "aria-invalid"?: boolean; "aria-describedby"?: string }>;
 }) {
-  const message = Array.isArray(error) ? error[0] : error;
+  const tr = useTr();
+  const message = tr(Array.isArray(error) ? error[0] : error);
   const describedBy = message ? `${name}-error` : hint ? `${name}-hint` : undefined;
   const child = cloneElement(children, { id: name, "aria-invalid": !!message, "aria-describedby": describedBy });
   return (

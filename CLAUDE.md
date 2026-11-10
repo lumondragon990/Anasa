@@ -26,3 +26,10 @@ Read this file first in every session. The full product requirements are in `doc
 
 ## Checks before finishing a phase
 `npm run typecheck && npm test && npm run build && npm run test:db`
+
+## Language (English / Spanish)
+- Never hard-code screen text. Add the key to `en` in `src/lib/i18n/dictionaries.ts`, then the Spanish text to `es` (the build fails if it is missing).
+- Server Components: `const { t } = await getT()` from `@/lib/i18n/server`. Client Components: `const t = useT()` from `@/lib/i18n/client`.
+- New English messages returned by server actions or database exceptions need a Spanish entry in `src/lib/i18n/messages.ts`.
+- Pass `t.localeTag` to `formatDate` and `formatMoney`.
+- Forms submit with `useActionForm` (`@/lib/use-action-form`) so inputs are kept after a validation error; pass `pending` to `SubmitButton`.

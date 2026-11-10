@@ -43,6 +43,8 @@ export type Capability =
   | "quotes.approve"
   | "orders.convert"
   | "costs.view"
+  | "payments.record"
+  | "payments.delete"
   | "users.manage";
 
 const CAPABILITIES: Record<Capability, AppRole[]> = {
@@ -53,6 +55,8 @@ const CAPABILITIES: Record<Capability, AppRole[]> = {
   "quotes.approve": ["super_admin", "director", "operations_manager"],
   "orders.convert": ["super_admin", "director", "operations_manager"],
   "costs.view": ["super_admin", "director", "operations_manager", "procurement_manager", "sales_rep", "finance_manager"],
+  "payments.record": ["super_admin", "director", "operations_manager", "finance_manager"],
+  "payments.delete": ["super_admin", "director", "finance_manager"],
   "users.manage": ["super_admin"],
 };
 

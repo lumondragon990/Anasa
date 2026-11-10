@@ -1,29 +1,32 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
+import { useActionForm } from "@/lib/use-action-form";
 import { Field, Input } from "@/components/ui/form";
 import { FormMessage, SubmitButton } from "@/components/form-status";
 import { signIn, signUp } from "./actions";
 import type { ActionState } from "@/lib/validation/shared";
+import { useT } from "@/lib/i18n/client";
 
 export function LoginForm({ next }: { next?: string }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [signInState, signInAction] = useActionState(signIn, {} as ActionState);
-  const [signUpState, signUpAction] = useActionState(signUp, {} as ActionState);
-  const state = mode === "signin" ? signInState : signUpState;
+  const t = useT();
+  const [signInState, signInSubmit, signInPending] = useActionForm(signIn);
+  const [signUpState, signUpSubmit, signUpPending] = useActionForm(signUp);
+  const state: ActionState = mode === "signin" ? signInState : signUpState;
 
   return (
-    <form action={mode === "signin" ? signInAction : signUpAction} className="flex flex-col gap-4">
+    <form onSubmit={mode === "signin" ? signInSubmit : signUpSubmit} className="flex flex-col gap-4">
       <input type="hidden" name="next" value={next ?? "/"} />
       {mode === "signup" ? (
-        <Field label="Full name" name="full_name" error={state.fieldErrors?.full_name}>
+        <Field label={t.auth.fullName} name="full_name" error={state.fieldErrors?.full_name}>
           <Input name="full_name" autoComplete="name" required />
         </Field>
       ) : null}
-      <Field label="Work email" name="email" error={state.fieldErrors?.email}>
+      <Field label={t.auth.workEmail} name="email" error={state.fieldErrors?.email}>
         <Input name="email" type="email" autoComplete="email" required />
       </Field>
-      <Field label="Password" name="password" error={state.fieldErrors?.password}>
+      <Field label={t.auth.password} name="password" error={state.fieldErrors?.password}>
         <Input
           name="password"
           type="password"
@@ -33,15 +36,15 @@ export function LoginForm({ next }: { next?: string }) {
         />
       </Field>
       <FormMessage state={state} />
-      <SubmitButton pendingLabel={mode === "signin" ? "Signing in…" : "Creating account…"} className="h-10">
-        {mode === "signin" ? "Sign in" : "Create account"}
+      <SubmitButton pending={mode === "signin" ? signInPending : signUpPending} pendingLabel={mode === "signin" ? t.auth.signingIn : t.auth.creatingAccount} className="h-10">
+        {mode === "signin" ? t.auth.signIn : t.auth.createAccount}
       </SubmitButton>
       <button
         type="button"
         className="text-sm text-muted underline-offset-4 hover:text-fg hover:underline"
         onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
       >
-        {mode === "signin" ? "New to ANASA? Create an account" : "Already have an account? Sign in"}
+        {mode === "signin" ? t.auth.toSignUp : t.auth.toSignIn}
       </button>
     </form>
   );

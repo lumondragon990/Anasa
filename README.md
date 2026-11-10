@@ -41,6 +41,7 @@ Keep the repository **private**. The `.gitignore` already excludes `.env.local` 
    - `20261110000002_commercial_core.sql`
    - `20261110000003_security.sql`
    - `20261111000004_supplier_quotes_documents.sql`: manual quote numbers, supplier quotations, file storage. This one also creates the private `documents` Storage bucket and its access rules.
+   - `20261112000005_po_and_payments.sql`: record a customer PO to approve a quotation for sale, and track payments.
 
    **Method B, the Supabase CLI:**
    ```bash

@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/form";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { createUploadTicket, registerDocument } from "@/lib/documents/actions";
 import { DOCUMENT_CATEGORIES, MAX_UPLOAD_BYTES, formatBytes, type DocumentCategory, type UploadTarget } from "@/lib/documents/shared";
+import { useT, useTr } from "@/lib/i18n/client";
 
 /**
  * Uploads go straight from the browser to private Supabase Storage using a
@@ -19,7 +20,7 @@ export function FileUpload({
   revalidate,
   defaultCategory = "other",
   showCategory = true,
-  label = "Upload files",
+  label,
 }: {
   target: UploadTarget;
   recordId: string;
@@ -29,6 +30,8 @@ export function FileUpload({
   label?: string;
 }) {
   const router = useRouter();
+  const t = useT();
+  const tr = useTr();
   const input = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<DocumentCategory>(defaultCategory);
   const [busy, setBusy] = useState(false);
@@ -42,19 +45,19 @@ export function FileUpload({
     let done = 0;
     for (const file of Array.from(files)) {
       if (file.size > MAX_UPLOAD_BYTES) {
-        setMessage({ ok: false, text: `${file.name} is ${formatBytes(file.size)}. Files can be up to 50 MB.` });
+        setMessage({ ok: false, text: t.files.tooBig(file.name, formatBytes(file.size)) });
         continue;
       }
       const ticket = await createUploadTicket({ target, id: recordId, fileName: file.name, size: file.size });
       if (!ticket.ok) {
-        setMessage({ ok: false, text: ticket.message });
+        setMessage({ ok: false, text: tr(ticket.message) });
         continue;
       }
       const { error } = await supabase.storage
         .from("documents")
         .uploadToSignedUrl(ticket.path, ticket.token, file, { contentType: file.type || "application/octet-stream" });
       if (error) {
-        setMessage({ ok: false, text: `${file.name}: ${error.message}` });
+        setMessage({ ok: false, text: `${file.name}: ${tr(error.message)}` });
         continue;
       }
       const reg = await registerDocument({
@@ -67,10 +70,10 @@ export function FileUpload({
         category,
         revalidate,
       });
-      if (!reg.ok) setMessage({ ok: false, text: `${file.name}: ${reg.message}` });
+      if (!reg.ok) setMessage({ ok: false, text: `${file.name}: ${tr(reg.message)}` });
       else done++;
     }
-    if (done) setMessage((m) => m ?? { ok: true, text: done === 1 ? "File uploaded." : `${done} files uploaded.` });
+    if (done) setMessage((m) => m ?? { ok: true, text: done === 1 ? t.files.uploadedOne : t.files.uploadedMany(done) });
     setBusy(false);
     if (input.current) input.current.value = "";
     router.refresh();
@@ -79,19 +82,19 @@ export function FileUpload({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {showCategory ? (
-        <Select value={category} onChange={(e) => setCategory(e.target.value as DocumentCategory)} className="w-48" aria-label="File type" disabled={busy}>
+        <Select value={category} onChange={(e) => setCategory(e.target.value as DocumentCategory)} className="w-48" aria-label={t.files.fileType} disabled={busy}>
           {Object.entries(DOCUMENT_CATEGORIES)
             .filter(([k]) => k !== "supplier_quote")
-            .map(([k, v]) => (
+            .map(([k]) => (
               <option key={k} value={k}>
-                {v}
+                {t.files.category[k]}
               </option>
             ))}
         </Select>
       ) : null}
       <input ref={input} type="file" multiple className="sr-only" id={`upload-${recordId}`} onChange={(e) => upload(e.target.files)} disabled={busy} />
       <Button type="button" variant="secondary" size="sm" disabled={busy} onClick={() => input.current?.click()} aria-busy={busy}>
-        <Upload /> {busy ? "Uploading…" : label}
+        <Upload /> {busy ? t.files.uploading : (label ?? t.files.upload)}
       </Button>
       {message ? <span className={message.ok ? "text-xs text-ok" : "text-xs text-danger"} role="status">{message.text}</span> : null}
     </div>

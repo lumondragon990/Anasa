@@ -14,16 +14,10 @@ import { lineTotal, marginPercent, toMoney } from "@/lib/money";
 import Decimal from "decimal.js";
 import { FileUpload } from "@/components/documents/file-upload";
 import { DocumentList, type DocumentRow } from "@/components/documents/document-list";
-import { addLine, addSupplierQuote, approveRevision, newRevision, removeLine, renumberQuotation, setSupplierQuoteStatus } from "../actions";
-import { AddLineForm, ApproveForm, NewRevisionForm, RenumberForm, SupplierQuoteForm } from "./quote-forms";
-
-const SQ_LABEL: Record<string, string> = {
-  received: "Received",
-  selected: "Selected",
-  not_selected: "Not selected",
-  expired: "Expired",
-  withdrawn: "Withdrawn",
-};
+import { addLine, addSupplierQuote, approveRevision, newRevision, recordCustomerPo, removeLine, renumberQuotation, setSupplierQuoteStatus } from "../actions";
+import { getT } from "@/lib/i18n/server";
+import { translateMessage } from "@/lib/i18n/messages";
+import { AddLineForm, ApproveForm, CustomerPoForm, NewRevisionForm, RenumberForm, SupplierQuoteForm } from "./quote-forms";
 
 type SupplierQuote = {
   id: string;
@@ -49,6 +43,9 @@ export default async function QuotationPage({
   const { id } = await params;
   const { rev } = await searchParams;
   const user = await requireInternalUser();
+  const { t, locale } = await getT();
+  const Q = t.quotes;
+  const L = t.localeTag;
   const supabase = await createClient();
 
   const [{ data: q }, { data: revisions }] = await Promise.all([
@@ -69,7 +66,7 @@ export default async function QuotationPage({
 
   const { data: order } = await supabase
     .from("sales_orders")
-    .select("id, order_number, status")
+    .select("id, order_number, status, payment_status")
     .eq("source_quotation_id", id)
     .maybeSingle();
 
@@ -123,20 +120,19 @@ export default async function QuotationPage({
         actions={<StatusBadge status={q.status} />}
       >
         <Link href="/quotations" className="mb-2 inline-block text-sm text-muted hover:text-fg">
-          Quotations
+          {Q.title}
         </Link>
       </PageHeader>
 
       {q.customer_code_at_issue !== customer.customer_code ? (
         <p className="mb-6 rounded-[var(--radius-control)] bg-surface-2 px-4 py-3 text-sm text-muted">
-          Issued while the customer code was {q.customer_code_at_issue}. The number is kept as issued; the customer now
-          uses {customer.customer_code}.
+          {Q.codeAtIssue(q.customer_code_at_issue, customer.customer_code)}
         </p>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          <nav aria-label="Revisions" className="flex flex-wrap gap-1 border-b border-line">
+          <nav aria-label={Q.revisions} className="flex flex-wrap gap-1 border-b border-line">
             {revisions.map((r) => (
               <Link
                 key={r.id}
@@ -148,18 +144,18 @@ export default async function QuotationPage({
                 )}
               >
                 {formatRevision(r.revision_no)}
-                {r.is_locked ? <Lock className="size-3" aria-label="locked" /> : null}
+                {r.is_locked ? <Lock className="size-3" aria-label={Q.locked} /> : null}
               </Link>
             ))}
           </nav>
 
           <Panel>
             <PanelHeader
-              title={`${formatRevision(shown.revision_no)} line items`}
+              title={Q.lineItems(formatRevision(shown.revision_no))}
               description={
                 shown.is_locked
-                  ? `Approved ${formatDate(shown.approved_at)}. This revision is locked and kept exactly as approved.`
-                  : "Draft. Lines can be changed until the revision is approved."
+                  ? Q.approvedLocked(formatDate(shown.approved_at, L))
+                  : Q.draftEditable
               }
               actions={<StatusBadge status={shown.status} />}
             />
@@ -168,11 +164,11 @@ export default async function QuotationPage({
                 <thead>
                   <tr>
                     <Th className="w-10">#</Th>
-                    <Th>Description</Th>
-                    <Th className="text-right">Qty</Th>
-                    <Th className="text-right">Unit price</Th>
-                    <Th className="text-right">Disc.</Th>
-                    <Th className="text-right">Total</Th>
+                    <Th>{Q.description_}</Th>
+                    <Th className="text-right">{Q.qty}</Th>
+                    <Th className="text-right">{Q.unitPrice}</Th>
+                    <Th className="text-right">{Q.disc}</Th>
+                    <Th className="text-right">{t.common.total}</Th>
                     {editable ? <Th className="w-10" /> : null}
                   </tr>
                 </thead>
@@ -183,21 +179,21 @@ export default async function QuotationPage({
                       <Td>
                         <p>{l.description}</p>
                         <p className="text-xs text-muted">
-                          {[l.line_type, l.manufacturer, l.part_number].filter(Boolean).join(", ")}
+                          {[Q.lineType[l.line_type], l.manufacturer, l.part_number].filter(Boolean).join(", ")}
                         </p>
                       </Td>
                       <Td className="text-right tabular-nums">
                         {Number(l.quantity)} {l.unit}
                       </Td>
-                      <Td className="text-right tabular-nums">{formatMoney(l.unit_price, q.currency)}</Td>
+                      <Td className="text-right tabular-nums">{formatMoney(l.unit_price, q.currency, L)}</Td>
                       <Td className="text-right tabular-nums text-muted">{Number(l.discount_pct) ? `${Number(l.discount_pct)}%` : "—"}</Td>
                       <Td className="text-right font-medium tabular-nums">
-                        {formatMoney(toMoney(lineTotal(String(l.quantity), String(l.unit_price), String(l.discount_pct))), q.currency)}
+                        {formatMoney(toMoney(lineTotal(String(l.quantity), String(l.unit_price), String(l.discount_pct))), q.currency, L)}
                       </Td>
                       {editable ? (
                         <Td>
                           <form action={removeLine.bind(null, id, l.id)}>
-                            <button type="submit" className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={`Remove line ${l.line_no}`}>
+                            <button type="submit" className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={Q.removeLine(l.line_no)}>
                               <Trash2 />
                             </button>
                           </form>
@@ -207,29 +203,28 @@ export default async function QuotationPage({
                   ))}
                   <tr>
                     <td colSpan={5} className="px-5 py-3 text-right text-sm text-muted">
-                      Subtotal
+                      {Q.subtotal}
                     </td>
-                    <td className="px-4 py-3 text-right text-base font-semibold tabular-nums">{formatMoney(shown.subtotal, q.currency)}</td>
+                    <td className="px-4 py-3 text-right text-base font-semibold tabular-nums">{formatMoney(shown.subtotal, q.currency, L)}</td>
                     {editable ? <td /> : null}
                   </tr>
                 </tbody>
               </Table>
             ) : (
-              <EmptyState title="No lines yet">{editable ? "Add the products and services being quoted below." : null}</EmptyState>
+              <EmptyState title={Q.noLines}>{editable ? Q.noLinesBody : null}</EmptyState>
             )}
             {editable ? (
               <div className="border-t border-line px-5 py-5">
                 <AddLineForm action={addLine.bind(null, id, shown.id)} />
                 <p className="mt-3 text-xs text-muted">
-                  Cost build-up, markup and margin calculation are added in Phase 5. Supplier costs are stored separately
-                  and never appear on customer documents.
+                  {Q.costNote}
                 </p>
               </div>
             ) : null}
           </Panel>
 
           <Panel>
-            <PanelHeader title="Files" description="Customer RFQs, drawings, specifications and anything else for this quotation" />
+            <PanelHeader title={Q.files} description={Q.filesHint} />
             <div className="flex flex-col gap-4 px-5 py-4">
               <DocumentList docs={(docs.data ?? []) as DocumentRow[]} canDelete={canDeleteFiles} revalidate={path} />
               <FileUpload target="quotation" recordId={id} revalidate={path} defaultCategory="customer_rfq" />
@@ -239,21 +234,21 @@ export default async function QuotationPage({
           {seeCosts ? (
             <Panel>
               <PanelHeader
-                title="Supplier quotations"
-                description="What suppliers quoted ANASA for this job. Internal only: never shown to the customer or on customer documents."
+                title={Q.supplierQuotes}
+                description={Q.supplierQuotesHint}
               />
               {selected.length ? (
                 <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-line bg-surface-2 px-5 py-3 text-sm">
                   <span>
-                    <span className="text-muted">Selected cost </span>
-                    <span className="font-medium tabular-nums">{sameCurrency ? formatMoney(selectedCost.toFixed(2), q.currency) : "Mixed currencies"}</span>
+                    <span className="text-muted">{Q.selectedCost} </span>
+                    <span className="font-medium tabular-nums">{sameCurrency ? formatMoney(selectedCost.toFixed(2), q.currency, L) : Q.mixedCurrencies}</span>
                   </span>
                   <span>
-                    <span className="text-muted">Selling price ({formatRevision(current.revision_no)}) </span>
-                    <span className="font-medium tabular-nums">{formatMoney(current.subtotal, q.currency)}</span>
+                    <span className="text-muted">{Q.sellingPrice(formatRevision(current.revision_no))} </span>
+                    <span className="font-medium tabular-nums">{formatMoney(current.subtotal, q.currency, L)}</span>
                   </span>
                   <span>
-                    <span className="text-muted">Gross margin </span>
+                    <span className="text-muted">{Q.grossMargin} </span>
                     <span className={cn("font-semibold tabular-nums", margin !== null && Number(margin) < 0 ? "text-danger" : "text-ok")}>
                       {margin !== null ? `${margin}%` : "—"}
                     </span>
@@ -266,26 +261,26 @@ export default async function QuotationPage({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 text-sm">
                         <p className="font-medium">
-                          {sq.suppliers?.display_name} <span className="text-muted">quote {sq.supplier_quote_number}</span>
+                          {sq.suppliers?.display_name} <span className="text-muted">{Q.sqTitle(sq.supplier_quote_number)}</span>
                         </p>
                         <p className="text-muted">
                           {[
-                            sq.quote_date ? `Dated ${formatDate(sq.quote_date)}` : null,
-                            sq.valid_until ? `valid until ${formatDate(sq.valid_until)}` : null,
-                            sq.lead_time ? `lead time ${sq.lead_time}` : null,
+                            sq.quote_date ? Q.dated(formatDate(sq.quote_date, L)) : null,
+                            sq.valid_until ? Q.validUntilShort(formatDate(sq.valid_until, L)) : null,
+                            sq.lead_time ? Q.leadTimeShort(sq.lead_time) : null,
                           ]
                             .filter(Boolean)
-                            .join(", ") || "No dates recorded"}
+                            .join(", ") || Q.noDates}
                         </p>
                         {sq.notes ? <p className="mt-1 text-muted">{sq.notes}</p> : null}
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold tabular-nums">{formatMoney(sq.total_amount, sq.currency)}</p>
-                        {Number(sq.freight) ? <p className="text-xs text-muted">+ {formatMoney(sq.freight, sq.currency)} freight</p> : null}
+                        <p className="font-semibold tabular-nums">{formatMoney(sq.total_amount, sq.currency, L)}</p>
+                        {Number(sq.freight) ? <p className="text-xs text-muted">{Q.plusFreight(formatMoney(sq.freight, sq.currency, L))}</p> : null}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-muted">Status</span>
+                      <span className="text-xs text-muted">{t.common.status}</span>
                       {(["received", "selected", "not_selected"] as const).map((st) => (
                         <form key={st} action={setSupplierQuoteStatus.bind(null, id, sq.id, st)}>
                           <button
@@ -296,7 +291,7 @@ export default async function QuotationPage({
                               sq.status === st ? "border-accent bg-accent-soft font-medium text-accent" : "border-line text-muted hover:text-fg",
                             )}
                           >
-                            {SQ_LABEL[st]}
+                            {t.status[st]}
                           </button>
                         </form>
                       ))}
@@ -306,15 +301,15 @@ export default async function QuotationPage({
                         docs={sqDocs.filter((d) => d.supplier_quote_id === sq.id) as DocumentRow[]}
                         canDelete={canDeleteFiles}
                         revalidate={path}
-                        empty="No supplier PDF attached yet."
+                        empty={Q.noSupplierPdf}
                       />
                       <div className="mt-2">
-                        <FileUpload target="supplier_quote" recordId={sq.id} revalidate={path} showCategory={false} label="Attach supplier PDF" />
+                        <FileUpload target="supplier_quote" recordId={sq.id} revalidate={path} showCategory={false} label={Q.attachSupplierPdf} />
                       </div>
                     </div>
                   </li>
                 ))}
-                {!sqList.length ? <li className="px-5 py-4 text-sm text-muted">No supplier quotations recorded for this job yet.</li> : null}
+                {!sqList.length ? <li className="px-5 py-4 text-sm text-muted">{Q.noSupplierQuotes}</li> : null}
               </ul>
               <div className="border-t border-line px-5 py-4">
                 <SupplierQuoteForm
@@ -329,23 +324,23 @@ export default async function QuotationPage({
 
         <aside className="flex flex-col gap-6">
           <Panel className="p-5 text-sm">
-            <p className="text-muted">Quotation number</p>
+            <p className="text-muted">{Q.quoteNumber}</p>
             <p className="mt-1 break-all text-base font-semibold">{q.quote_number}</p>
-            {q.is_manual_number ? <p className="mt-1 text-xs text-muted">Set by hand</p> : null}
+            {q.is_manual_number ? <p className="mt-1 text-xs text-muted">{Q.setByHand}</p> : null}
             {canRenumber ? (
               <div className="mt-3">
                 <RenumberForm action={renumberQuotation.bind(null, id)} current={q.quote_number} />
               </div>
             ) : anyLocked ? (
-              <p className="mt-2 text-xs text-muted">Permanent: a revision has been approved.</p>
+              <p className="mt-2 text-xs text-muted">{Q.permanent}</p>
             ) : null}
             {history.data && history.data.length > 1 ? (
               <ol className="mt-4 border-t border-line pt-3">
                 {history.data.map((h) => (
                   <li key={h.id} className="py-1 text-xs text-muted">
-                    {formatDate(h.changed_at)}: {h.old_number ? `${h.old_number} to ` : ""}
+                    {formatDate(h.changed_at, L)}: {h.old_number ? `${t.customers.codeChange(h.old_number, "")}` : ""}
                     <span className="text-fg">{h.new_number}</span>
-                    {h.reason ? `, ${h.reason}` : ""}
+                    {h.reason ? `, ${translateMessage(h.reason, locale)}` : ""}
                   </li>
                 ))}
               </ol>
@@ -355,11 +350,11 @@ export default async function QuotationPage({
           <Panel className="p-5 text-sm">
             <dl className="flex flex-col gap-3">
               {[
-                ["Customer reference", q.customer_reference],
-                ["Currency", q.currency],
-                ["Valid until", q.valid_until ? formatDate(q.valid_until) : null],
-                ["Created", formatDate(q.created_at)],
-                ["Revision reason", shown.reason],
+                [Q.customerReference, q.customer_reference],
+                [t.common.currency, q.currency],
+                [Q.validUntil, q.valid_until ? formatDate(q.valid_until, L) : null],
+                [t.common.created, formatDate(q.created_at, L)],
+                [Q.revisionReason, shown.reason ? translateMessage(shown.reason, locale) : null],
               ].map(([label, value]) => (
                 <div key={label} className="grid grid-cols-[8rem_1fr] gap-2">
                   <dt className="text-muted">{label}</dt>
@@ -371,26 +366,38 @@ export default async function QuotationPage({
 
           {order ? (
             <Panel className="p-5">
-              <p className="text-sm text-muted">Converted to sales order</p>
-              <div className="mt-2">
+              <p className="text-sm text-muted">{Q.convertedTo}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <DocRef value={order.order_number} />
               </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <StatusBadge status={order.status} />
+                <StatusBadge status={order.payment_status} />
+              </div>
+              <Link href={`/sales-orders/${order.id}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "mt-4")}>
+                {Q.viewOrder}
+              </Link>
+            </Panel>
+          ) : ["approved", "sent", "customer_reviewing", "accepted"].includes(q.status) && current.is_locked && can(user.role, "orders.convert") ? (
+            <Panel className="border-accent/40 p-5">
+              <h2 className="text-[15px] font-semibold">{Q.poPanelTitle}</h2>
+              <p className="mb-4 mt-1 text-sm text-muted">{Q.poPanelBody}</p>
+              <CustomerPoForm action={recordCustomerPo.bind(null, id)} quoteTotal={formatMoney(current.subtotal, q.currency, L)} />
             </Panel>
           ) : null}
 
           {isCurrent && !shown.is_locked && !closed && can(user.role, "quotes.approve") ? (
             <Panel className="p-5">
-              <h2 className="mb-3 text-[15px] font-semibold">Approve {formatRevision(shown.revision_no)}</h2>
+              <h2 className="mb-3 text-[15px] font-semibold">{Q.approveTitle(formatRevision(shown.revision_no))}</h2>
               <ApproveForm action={approveRevision.bind(null, id, shown.id)} />
             </Panel>
           ) : null}
 
           {isCurrent && shown.is_locked && !closed && can(user.role, "quotes.create") ? (
             <Panel className="p-5">
-              <h2 className="mb-1 text-[15px] font-semibold">Revise this quotation</h2>
+              <h2 className="mb-1 text-[15px] font-semibold">{Q.reviseTitle}</h2>
               <p className="mb-3 text-sm text-muted">
-                Copies {formatRevision(shown.revision_no)} into {formatRevision(shown.revision_no + 1)}. The quote number stays
-                the same and {formatRevision(shown.revision_no)} is kept unchanged.
+                {Q.reviseBody(formatRevision(shown.revision_no), formatRevision(shown.revision_no + 1))}
               </p>
               <NewRevisionForm action={newRevision.bind(null, id)} />
             </Panel>
@@ -398,7 +405,7 @@ export default async function QuotationPage({
 
           {!isCurrent ? (
             <Link href={`/quotations/${id}`} className={buttonVariants({ variant: "secondary" })}>
-              Go to current revision
+              {Q.goCurrent}
             </Link>
           ) : null}
         </aside>

@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionForm } from "@/lib/use-action-form";
+
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { FormMessage, SubmitButton } from "@/components/form-status";
 import type { ActionState } from "@/lib/validation/shared";
+import { useT } from "@/lib/i18n/client";
 
 type Values = Record<string, string | null | undefined>;
 
@@ -16,7 +18,10 @@ export function SupplierForm({
   values?: Values;
   submitLabel: string;
 }) {
-  const [state, formAction] = useActionState(action, {});
+  const [state, formAction, pending] = useActionForm(action);
+  const t = useT();
+  const S = t.suppliers;
+  const C = t.customers;
   const e = state.fieldErrors ?? {};
   const v = (k: string) => values[k] ?? "";
   const text = (name: string, label: string, opts: { hint?: string; wide?: boolean; required?: boolean; type?: string } = {}) => (
@@ -26,61 +31,62 @@ export function SupplierForm({
   );
 
   return (
-    <form action={formAction} className="flex flex-col gap-8">
+    <form onSubmit={formAction} className="flex flex-col gap-8">
       <fieldset className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-        <legend className="mb-3 text-[15px] font-semibold">Company</legend>
-        <Field label="Supplier code" name="supplier_code" hint="2–8 letters or digits, used on supplier POs" error={e.supplier_code}>
+        <legend className="mb-3 text-[15px] font-semibold">{C.sectionCompany}</legend>
+        <Field label={S.supplierCode} name="supplier_code" hint={S.supplierCodeHint} error={e.supplier_code}>
           <Input name="supplier_code" defaultValue={v("supplier_code")} required maxLength={8} className="font-semibold uppercase tracking-wider" />
         </Field>
-        <Field label="Status" name="status">
+        <Field label={t.common.status} name="status">
           <Select name="status" defaultValue={v("status") || "active"}>
-            <option value="prospect">Prospect</option>
-            <option value="active">Active</option>
-            <option value="on_hold">On hold</option>
-            <option value="inactive">Inactive</option>
+            {["prospect", "active", "on_hold", "inactive"].map((st) => (
+              <option key={st} value={st}>
+                {t.status[st]}
+              </option>
+            ))}
           </Select>
         </Field>
-        {text("legal_name", "Legal company name", { required: true })}
-        {text("display_name", "Display name", { required: true })}
-        {text("website", "Website")}
-        {text("email", "General email", { type: "email" })}
-        {text("phone", "Phone")}
+        {text("legal_name", C.legalName, { required: true })}
+        {text("display_name", C.displayName, { required: true })}
+        {text("website", t.common.website)}
+        {text("email", C.generalEmail, { type: "email" })}
+        {text("phone", t.common.phone)}
       </fieldset>
 
       <fieldset className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-        <legend className="mb-3 text-[15px] font-semibold">Commercial</legend>
-        {text("payment_terms", "Payment terms")}
-        <Field label="Currency" name="currency" error={e.currency}>
+        <legend className="mb-3 text-[15px] font-semibold">{C.sectionCommercial}</legend>
+        {text("payment_terms", C.paymentTerms)}
+        <Field label={t.common.currency} name="currency" error={e.currency}>
           <Input name="currency" defaultValue={v("currency") || "USD"} maxLength={3} className="uppercase" />
         </Field>
-        {text("service_territory", "Service territory", { hint: "States, regions or countries covered", wide: true })}
-        <Field label="Warranty" name="warranty_info" className="sm:col-span-2">
+        {text("service_territory", S.serviceTerritory, { hint: S.serviceTerritoryHint, wide: true })}
+        <Field label={S.warranty} name="warranty_info" className="sm:col-span-2">
           <Textarea name="warranty_info" defaultValue={v("warranty_info")} className="min-h-16" />
         </Field>
       </fieldset>
 
       <fieldset className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-        <legend className="mb-3 text-[15px] font-semibold">Address</legend>
-        {text("line1", "Address line 1", { wide: true })}
-        {text("line2", "Address line 2", { wide: true })}
-        {text("city", "City")}
-        {text("state", "State / region")}
-        {text("postal_code", "Postal code")}
-        {text("country", "Country")}
+        <legend className="mb-3 text-[15px] font-semibold">{S.address}</legend>
+        {text("line1", C.line1, { wide: true })}
+        {text("line2", C.line2, { wide: true })}
+        {text("city", C.city)}
+        {text("state", C.state)}
+        {text("postal_code", C.postal)}
+        {text("country", C.country)}
       </fieldset>
 
       <fieldset className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-        <legend className="mb-3 text-[15px] font-semibold">Notes</legend>
-        <Field label="Performance notes" name="performance_notes" className="sm:col-span-2">
+        <legend className="mb-3 text-[15px] font-semibold">{C.sectionNotes}</legend>
+        <Field label={S.performanceNotes} name="performance_notes" className="sm:col-span-2">
           <Textarea name="performance_notes" defaultValue={v("performance_notes")} />
         </Field>
-        <Field label="Internal notes" name="notes" className="sm:col-span-2">
+        <Field label={C.internalNotes} name="notes" className="sm:col-span-2">
           <Textarea name="notes" defaultValue={v("notes")} />
         </Field>
       </fieldset>
 
       <div className="flex flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center">
-        <SubmitButton>{submitLabel}</SubmitButton>
+        <SubmitButton pending={pending}>{submitLabel}</SubmitButton>
         <FormMessage state={state} />
       </div>
     </form>

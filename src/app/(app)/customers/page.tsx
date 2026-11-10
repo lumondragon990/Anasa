@@ -8,8 +8,12 @@ import { buttonVariants } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/form";
 import { StatusBadge } from "@/components/ui/badge";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "Customers" };
+export async function generateMetadata() {
+  const { t } = await getT();
+  return { title: t.customers.title };
+}
 
 export default async function CustomersPage({
   searchParams,
@@ -17,6 +21,7 @@ export default async function CustomersPage({
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
   const user = await requireInternalUser();
+  const { t } = await getT();
   const { q = "", status = "" } = await searchParams;
   const supabase = await createClient();
 
@@ -32,12 +37,12 @@ export default async function CustomersPage({
   return (
     <>
       <PageHeader
-        title="Customers"
-        description="Every company ANASA quotes for. The code in the first column appears in all of that company’s quotation and order numbers."
+        title={t.customers.title}
+        description={t.customers.description}
         actions={
           can(user.role, "customers.write") ? (
             <Link href="/customers/new" className={buttonVariants()}>
-              <Plus /> New customer
+              <Plus /> {t.customers.newCustomer}
             </Link>
           ) : null
         }
@@ -47,31 +52,32 @@ export default async function CustomersPage({
         <form className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3" role="search">
           <div className="relative min-w-60 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <Input name="q" defaultValue={q} placeholder="Search by name or code" className="pl-9" aria-label="Search customers" />
+            <Input name="q" defaultValue={q} placeholder={t.customers.searchPlaceholder} className="pl-9" aria-label={t.customers.searchAria} />
           </div>
-          <Select name="status" defaultValue={status} className="w-40" aria-label="Filter by status">
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="prospect">Prospect</option>
-            <option value="on_hold">On hold</option>
-            <option value="inactive">Inactive</option>
+          <Select name="status" defaultValue={status} className="w-40" aria-label={t.customers.filterAria}>
+            <option value="">{t.common.allStatuses}</option>
+            {["active", "prospect", "on_hold", "inactive"].map((s) => (
+              <option key={s} value={s}>
+                {t.status[s]}
+              </option>
+            ))}
           </Select>
           <button type="submit" className={buttonVariants({ variant: "secondary" })}>
-            Search
+            {t.common.search}
           </button>
         </form>
 
         {error ? (
-          <p className="px-5 py-4 text-sm text-danger">Customers could not be loaded: {error.message}</p>
+          <p className="px-5 py-4 text-sm text-danger">{t.errors.loadFailed(t.customers.title, error.message)}</p>
         ) : customers && customers.length > 0 ? (
           <Table>
             <thead>
               <tr>
-                <Th className="w-24">Code</Th>
-                <Th>Company</Th>
-                <Th>Primary contact</Th>
-                <Th>Location</Th>
-                <Th>Status</Th>
+                <Th className="w-24">{t.common.code}</Th>
+                <Th>{t.common.company}</Th>
+                <Th>{t.common.primaryContact}</Th>
+                <Th>{t.common.location}</Th>
+                <Th>{t.common.status}</Th>
               </tr>
             </thead>
             <tbody>
@@ -97,8 +103,8 @@ export default async function CustomersPage({
             </tbody>
           </Table>
         ) : (
-          <EmptyState title={q || status ? "No customers match this search" : "No customers yet"}>
-            {q || status ? "Try a shorter name or clear the status filter." : "Add your first customer to start issuing quotations."}
+          <EmptyState title={q || status ? t.customers.noMatch : t.customers.empty}>
+            {q || status ? t.customers.noMatchBody : t.customers.emptyBody}
           </EmptyState>
         )}
       </Panel>

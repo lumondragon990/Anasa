@@ -10,13 +10,19 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { DocRef } from "@/components/doc-ref";
 import { formatDate, formatMoney, formatRevision } from "@/lib/utils";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "Quotations" };
+export async function generateMetadata() {
+  const { t } = await getT();
+  return { title: t.quotes.title };
+}
 
 const STATUSES = ["draft", "under_review", "approved", "sent", "customer_reviewing", "accepted", "converted", "rejected", "expired", "cancelled"];
 
 export default async function QuotationsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
   const user = await requireInternalUser();
+  const { t } = await getT();
+  const Q = t.quotes;
   const { q = "", status = "" } = await searchParams;
   const supabase = await createClient();
   const term = q.trim().replace(/[%,()]/g, " ");
@@ -32,12 +38,12 @@ export default async function QuotationsPage({ searchParams }: { searchParams: P
   return (
     <>
       <PageHeader
-        title="Quotations"
-        description="ANASA customer quotations. Numbers are assigned by the database when a draft is created and are never reused."
+        title={Q.title}
+        description={Q.description}
         actions={
           can(user.role, "quotes.create") ? (
             <Link href="/quotations/new" className={buttonVariants()}>
-              <Plus /> New quotation
+              <Plus /> {Q.newQuotation}
             </Link>
           ) : null
         }
@@ -46,32 +52,32 @@ export default async function QuotationsPage({ searchParams }: { searchParams: P
         <form className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3" role="search">
           <div className="relative min-w-60 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <Input name="q" defaultValue={q} placeholder="Quote number, subject or customer reference" className="pl-9" aria-label="Search quotations" />
+            <Input name="q" defaultValue={q} placeholder={Q.searchPlaceholder} className="pl-9" aria-label={Q.searchAria} />
           </div>
-          <Select name="status" defaultValue={status} className="w-44" aria-label="Filter by status">
-            <option value="">All statuses</option>
+          <Select name="status" defaultValue={status} className="w-44" aria-label={t.customers.filterAria}>
+            <option value="">{t.common.allStatuses}</option>
             {STATUSES.map((s) => (
-              <option key={s} value={s} className="capitalize">
-                {s.replace(/_/g, " ")}
+              <option key={s} value={s}>
+                {t.status[s]}
               </option>
             ))}
           </Select>
           <button type="submit" className={buttonVariants({ variant: "secondary" })}>
-            Search
+            {t.common.search}
           </button>
         </form>
         {error ? (
-          <p className="px-5 py-4 text-sm text-danger">Quotations could not be loaded: {error.message}</p>
+          <p className="px-5 py-4 text-sm text-danger">{t.errors.loadFailed(Q.title, error.message)}</p>
         ) : data && data.length ? (
           <Table>
             <thead>
               <tr>
-                <Th>Number</Th>
-                <Th>Customer</Th>
-                <Th>Subject</Th>
-                <Th>Status</Th>
-                <Th className="text-right">Value</Th>
-                <Th className="text-right">Created</Th>
+                <Th>{t.customers.number}</Th>
+                <Th>{t.common.customer}</Th>
+                <Th>{t.common.subject}</Th>
+                <Th>{t.common.status}</Th>
+                <Th className="text-right">{t.common.value}</Th>
+                <Th className="text-right">{t.common.created}</Th>
               </tr>
             </thead>
             <tbody>
@@ -90,16 +96,16 @@ export default async function QuotationsPage({ searchParams }: { searchParams: P
                     <Td>
                       <StatusBadge status={row.status} />
                     </Td>
-                    <Td className="text-right tabular-nums">{rev ? formatMoney(rev.subtotal, row.currency) : "—"}</Td>
-                    <Td className="text-right text-muted">{formatDate(row.created_at)}</Td>
+                    <Td className="text-right tabular-nums">{rev ? formatMoney(rev.subtotal, row.currency, t.localeTag) : "—"}</Td>
+                    <Td className="text-right text-muted">{formatDate(row.created_at, t.localeTag)}</Td>
                   </Tr>
                 );
               })}
             </tbody>
           </Table>
         ) : (
-          <EmptyState title={q || status ? "No quotations match this search" : "No quotations yet"}>
-            {q || status ? "Search accepts part of a number, e.g. ABC-Q-2026." : "Create a quotation from a customer’s page or with New quotation."}
+          <EmptyState title={q || status ? Q.noMatch : Q.empty}>
+            {q || status ? Q.noMatchBody : Q.emptyBody}
           </EmptyState>
         )}
       </Panel>

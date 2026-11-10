@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionForm } from "@/lib/use-action-form";
+import { useRef, useState, useTransition } from "react";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { FormMessage, SubmitButton } from "@/components/form-status";
 import type { ActionState } from "@/lib/validation/shared";
 import { checkCodeAvailable, suggestAvailableCode } from "./actions";
+import { useT } from "@/lib/i18n/client";
 
 export type CustomerValues = Partial<Record<
   | "legal_name" | "display_name" | "status" | "website" | "email" | "phone" | "tax_id" | "payment_terms"
@@ -22,74 +24,77 @@ export function CustomerForm({
   isNew?: boolean;
   submitLabel: string;
 }) {
-  const [state, formAction] = useActionState(action, {});
+  const [state, formAction, pending] = useActionForm(action);
+  const t = useT();
+  const c = t.customers;
   const e = state.fieldErrors ?? {};
   const v = (k: keyof CustomerValues) => values[k] ?? "";
 
   return (
-    <form action={formAction} className="flex flex-col gap-8">
-      <Section title="Company">
+    <form onSubmit={formAction} className="flex flex-col gap-8">
+      <Section title={c.sectionCompany}>
         <CompanyFields isNew={isNew} values={values} errors={e} />
-        <Field label="Status" name="status" error={e.status}>
+        <Field label={t.common.status} name="status" error={e.status}>
           <Select name="status" defaultValue={v("status") || "active"}>
-            <option value="prospect">Prospect</option>
-            <option value="active">Active</option>
-            <option value="on_hold">On hold</option>
-            <option value="inactive">Inactive</option>
+            {["prospect", "active", "on_hold", "inactive"].map((s) => (
+              <option key={s} value={s}>
+                {t.status[s]}
+              </option>
+            ))}
           </Select>
         </Field>
-        <Field label="Website" name="website" error={e.website}>
+        <Field label={t.common.website} name="website" error={e.website}>
           <Input name="website" defaultValue={v("website")} placeholder="https://" />
         </Field>
-        <Field label="General email" name="email" error={e.email}>
+        <Field label={c.generalEmail} name="email" error={e.email}>
           <Input name="email" type="email" defaultValue={v("email")} />
         </Field>
-        <Field label="Phone" name="phone" error={e.phone}>
+        <Field label={t.common.phone} name="phone" error={e.phone}>
           <Input name="phone" defaultValue={v("phone")} />
         </Field>
       </Section>
 
-      <Section title="Commercial">
-        <Field label="Payment terms" name="payment_terms" hint="Copied onto new quotations, e.g. Net 30" error={e.payment_terms}>
+      <Section title={c.sectionCommercial}>
+        <Field label={c.paymentTerms} name="payment_terms" hint={c.paymentTermsHint} error={e.payment_terms}>
           <Input name="payment_terms" defaultValue={v("payment_terms")} />
         </Field>
-        <Field label="Currency" name="currency" error={e.currency}>
+        <Field label={t.common.currency} name="currency" error={e.currency}>
           <Input name="currency" defaultValue={v("currency") || "USD"} maxLength={3} className="uppercase" />
         </Field>
-        <Field label="RFC" name="tax_id" hint="Mexican tax ID, e.g. ANA120101AB1. For customers outside Mexico, enter their tax ID." error={e.tax_id}>
+        <Field label={c.rfc} name="tax_id" hint={c.rfcHint} error={e.tax_id}>
           <Input name="tax_id" defaultValue={v("tax_id")} maxLength={20} className="uppercase" />
         </Field>
       </Section>
 
-      <Section title="Billing address">
-        <Field label="Address line 1" name="billing_line1" className="sm:col-span-2">
+      <Section title={c.sectionBilling}>
+        <Field label={c.line1} name="billing_line1" className="sm:col-span-2">
           <Input name="billing_line1" defaultValue={v("billing_line1")} />
         </Field>
-        <Field label="Address line 2" name="billing_line2" className="sm:col-span-2">
+        <Field label={c.line2} name="billing_line2" className="sm:col-span-2">
           <Input name="billing_line2" defaultValue={v("billing_line2")} />
         </Field>
-        <Field label="City" name="billing_city">
+        <Field label={c.city} name="billing_city">
           <Input name="billing_city" defaultValue={v("billing_city")} />
         </Field>
-        <Field label="State / region" name="billing_state">
+        <Field label={c.state} name="billing_state">
           <Input name="billing_state" defaultValue={v("billing_state")} />
         </Field>
-        <Field label="Postal code" name="billing_postal_code">
+        <Field label={c.postal} name="billing_postal_code">
           <Input name="billing_postal_code" defaultValue={v("billing_postal_code")} />
         </Field>
-        <Field label="Country" name="billing_country">
+        <Field label={c.country} name="billing_country">
           <Input name="billing_country" defaultValue={v("billing_country")} />
         </Field>
       </Section>
 
-      <Section title="Notes">
-        <Field label="Internal notes" name="notes" className="sm:col-span-2" error={e.notes}>
+      <Section title={c.sectionNotes}>
+        <Field label={c.internalNotes} name="notes" className="sm:col-span-2" error={e.notes}>
           <Textarea name="notes" defaultValue={v("notes")} />
         </Field>
       </Section>
 
       <div className="flex flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center">
-        <SubmitButton>{submitLabel}</SubmitButton>
+        <SubmitButton pending={pending}>{submitLabel}</SubmitButton>
         <FormMessage state={state} />
       </div>
     </form>
@@ -105,10 +110,12 @@ function CompanyFields({
   values: CustomerValues;
   errors: Record<string, string[] | undefined>;
 }) {
+  const t = useT();
+  const c = t.customers;
   const [legal, setLegal] = useState(values.legal_name ?? "");
   const [display, setDisplay] = useState(values.display_name ?? "");
   const [code, setCode] = useState("");
-  const [codeNote, setCodeNote] = useState<string>("Suggested from the company name. You can change it.");
+  const [codeNote, setCodeNote] = useState<string>(c.codeSuggested);
   const [, startTransition] = useTransition();
   const codeTouched = useRef(false);
   const displayTouched = useRef(!!values.display_name);
@@ -119,7 +126,7 @@ function CompanyFields({
     startTransition(async () => {
       const res = await suggestAvailableCode(legal);
       setCode(res.code);
-      setCodeNote(res.available ? "Suggested from the company name. You can change it." : "No free suggestion found. Enter a code.");
+      setCodeNote(res.available ? c.codeSuggested : c.codeNoSuggestion);
     });
   }
 
@@ -128,21 +135,17 @@ function CompanyFields({
     startTransition(async () => {
       const free = await checkCodeAvailable(code);
       setCodeNote(
-        code === "ANA"
-          ? "ANA is the ANASA document prefix. Choose another code."
-          : free
-            ? `${code} is available.`
-            : `${code} is already issued. Choose another code.`,
+        code === "ANA" ? c.codeReserved : free ? c.codeAvailable(code) : c.codeTaken(code),
       );
     });
   }
 
   return (
     <>
-      <Field label="Legal company name" name="legal_name" error={errors.legal_name}>
+      <Field label={c.legalName} name="legal_name" error={errors.legal_name}>
         <Input name="legal_name" required value={legal} onChange={(e) => setLegal(e.target.value)} onBlur={onLegalBlur} />
       </Field>
-      <Field label="Display name" name="display_name" error={errors.display_name}>
+      <Field label={c.displayName} name="display_name" error={errors.display_name}>
         <Input
           name="display_name"
           required
@@ -154,7 +157,7 @@ function CompanyFields({
         />
       </Field>
       {isNew ? (
-        <Field label="Customer code" name="customer_code" hint={codeNote} error={errors.customer_code}>
+        <Field label={c.customerCode} name="customer_code" hint={codeNote} error={errors.customer_code}>
           <Input
             name="customer_code"
             required

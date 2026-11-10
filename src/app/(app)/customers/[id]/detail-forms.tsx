@@ -1,11 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionForm } from "@/lib/use-action-form";
+import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { FormMessage, SubmitButton } from "@/components/form-status";
 import type { ActionState } from "@/lib/validation/shared";
+import { useT } from "@/lib/i18n/client";
 
 type Action = (state: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -29,41 +31,44 @@ function Reveal({ label, children }: { label: string; children: (close: () => vo
 }
 
 export function AddContactForm({ action }: { action: Action }) {
+  const t = useT();
   return (
-    <Reveal label="Add contact">
+    <Reveal label={t.customers.addContact}>
       {(close) => <ContactFields action={action} close={close} />}
     </Reveal>
   );
 }
 
 function ContactFields({ action, close }: { action: Action; close: () => void }) {
-  const [state, formAction] = useActionState(action, {});
+  const [state, formAction, pending] = useActionForm(action);
   const ref = useResetOnSuccess(state);
+  const t = useT();
+  const c = t.customers;
   const e = state.fieldErrors ?? {};
   return (
-    <form ref={ref} action={formAction} className="grid gap-4 sm:grid-cols-2">
-      <Field label="First name" name="first_name" error={e.first_name}>
+    <form ref={ref} onSubmit={formAction} className="grid gap-4 sm:grid-cols-2">
+      <Field label={c.firstName} name="first_name" error={e.first_name}>
         <Input name="first_name" required />
       </Field>
-      <Field label="Last name" name="last_name">
+      <Field label={c.lastName} name="last_name">
         <Input name="last_name" />
       </Field>
-      <Field label="Title" name="title">
+      <Field label={c.jobTitle} name="title">
         <Input name="title" />
       </Field>
-      <Field label="Email" name="email" error={e.email}>
+      <Field label={t.common.email} name="email" error={e.email}>
         <Input name="email" type="email" />
       </Field>
-      <Field label="Phone" name="phone">
+      <Field label={t.common.phone} name="phone">
         <Input name="phone" />
       </Field>
       <label className="flex items-center gap-2 self-end pb-2 text-sm">
-        <input type="checkbox" name="is_primary" className="size-4 accent-[var(--accent)]" /> Primary contact
+        <input type="checkbox" name="is_primary" className="size-4 accent-[var(--accent)]" /> {t.common.primaryContact}
       </label>
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-        <SubmitButton>Save contact</SubmitButton>
+        <SubmitButton pending={pending}>{c.saveContact}</SubmitButton>
         <Button type="button" variant="ghost" onClick={close}>
-          Close
+          {t.common.close}
         </Button>
         <FormMessage state={state} />
       </div>
@@ -72,48 +77,52 @@ function ContactFields({ action, close }: { action: Action; close: () => void })
 }
 
 export function AddLocationForm({ action }: { action: Action }) {
-  return <Reveal label="Add location">{(close) => <LocationFields action={action} close={close} />}</Reveal>;
+  const t = useT();
+  return <Reveal label={t.customers.addLocation}>{(close) => <LocationFields action={action} close={close} />}</Reveal>;
 }
 
 function LocationFields({ action, close }: { action: Action; close: () => void }) {
-  const [state, formAction] = useActionState(action, {});
+  const [state, formAction, pending] = useActionForm(action);
   const ref = useResetOnSuccess(state);
+  const t = useT();
+  const c = t.customers;
   const e = state.fieldErrors ?? {};
   return (
-    <form ref={ref} action={formAction} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Type" name="kind">
+    <form ref={ref} onSubmit={formAction} className="grid gap-4 sm:grid-cols-2">
+      <Field label={c.type} name="kind">
         <Select name="kind" defaultValue="job_site">
-          <option value="job_site">Job site</option>
-          <option value="shipping">Shipping</option>
-          <option value="billing">Billing</option>
-          <option value="office">Office</option>
+          {["job_site", "shipping", "billing", "office"].map((k) => (
+            <option key={k} value={k}>
+              {c.kind[k]}
+            </option>
+          ))}
         </Select>
       </Field>
-      <Field label="Label" name="label" hint="e.g. Solway Substation" error={e.label}>
+      <Field label={c.label} name="label" hint={c.labelHint} error={e.label}>
         <Input name="label" required />
       </Field>
-      <Field label="Address line 1" name="line1" className="sm:col-span-2">
+      <Field label={c.line1} name="line1" className="sm:col-span-2">
         <Input name="line1" />
       </Field>
-      <Field label="City" name="city">
+      <Field label={c.city} name="city">
         <Input name="city" />
       </Field>
-      <Field label="State / region" name="state">
+      <Field label={c.state} name="state">
         <Input name="state" />
       </Field>
-      <Field label="Postal code" name="postal_code">
+      <Field label={c.postal} name="postal_code">
         <Input name="postal_code" />
       </Field>
-      <Field label="Country" name="country">
+      <Field label={c.country} name="country">
         <Input name="country" />
       </Field>
-      <Field label="Site access notes" name="site_notes" className="sm:col-span-2">
+      <Field label={c.siteNotes} name="site_notes" className="sm:col-span-2">
         <Textarea name="site_notes" className="min-h-16" />
       </Field>
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-        <SubmitButton>Save location</SubmitButton>
+        <SubmitButton pending={pending}>{c.saveLocation}</SubmitButton>
         <Button type="button" variant="ghost" onClick={close}>
-          Close
+          {t.common.close}
         </Button>
         <FormMessage state={state} />
       </div>
@@ -123,26 +132,27 @@ function LocationFields({ action, close }: { action: Action; close: () => void }
 
 export function ChangeCodeForm({ action, current }: { action: Action; current: string }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction] = useActionState(action, {});
+  const [state, formAction, pending] = useActionForm(action);
+  const t = useT();
   const e = state.fieldErrors ?? {};
   if (!open)
     return (
       <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
-        Change code
+        {t.customers.changeCode}
       </Button>
     );
   return (
-    <form action={formAction} className="mt-4 grid gap-4 sm:grid-cols-[10rem_1fr]">
-      <Field label="New code" name="new_code" error={e.new_code}>
+    <form onSubmit={formAction} className="mt-4 grid gap-4 sm:grid-cols-[10rem_1fr]">
+      <Field label={t.customers.newCode} name="new_code" error={e.new_code}>
         <Input name="new_code" required maxLength={6} defaultValue={current} className="font-semibold uppercase tracking-wider" />
       </Field>
-      <Field label="Reason" name="reason" hint="Recorded in the code history." error={e.reason}>
+      <Field label={t.common.reason} name="reason" hint={t.customers.changeReasonHint} error={e.reason}>
         <Input name="reason" required />
       </Field>
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-        <SubmitButton variant="danger">Change code</SubmitButton>
+        <SubmitButton pending={pending} variant="danger">{t.customers.changeCode}</SubmitButton>
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
+          {t.common.cancel}
         </Button>
         <FormMessage state={state} />
       </div>

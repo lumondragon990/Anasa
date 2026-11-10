@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireInternalUser } from "@/lib/auth";
-import { can, ROLE_LABELS, type AppRole } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
+import { getT } from "@/lib/i18n/server";
 import { PageHeader, Panel, PanelHeader } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
@@ -9,11 +10,17 @@ import { formatDate } from "@/lib/utils";
 import { saveSettings, setUserRole } from "./actions";
 import { RoleForm, SettingsForm } from "./forms";
 
-export const metadata = { title: "Administration" };
+export async function generateMetadata() {
+  const { t } = await getT();
+  return { title: t.admin.title };
+}
 
 export default async function AdminUsersPage() {
   const user = await requireInternalUser();
   if (!can(user.role, "users.manage")) redirect("/");
+  const { t } = await getT();
+  const A = t.admin;
+  const L = t.localeTag;
   const supabase = await createClient();
   const [{ data: profiles }, { data: settings }, { data: audit }] = await Promise.all([
     supabase.from("profiles").select("*").order("created_at"),
@@ -27,18 +34,18 @@ export default async function AdminUsersPage() {
   return (
     <>
       <PageHeader
-        title="Administration"
-        description="New sign-ups have no access until you give them a role. Database policies enforce every role, whatever the screen shows."
+        title={A.title}
+        description={A.description}
       />
 
       <Panel>
-        <PanelHeader title="Users" description={pending ? `${pending} waiting for a role` : `${profiles?.length ?? 0} accounts`} />
+        <PanelHeader title={A.users} description={pending ? A.waiting(pending) : A.accounts(profiles?.length ?? 0)} />
         <Table>
           <thead>
             <tr>
-              <Th>Person</Th>
-              <Th>Joined</Th>
-              <Th>Role and access</Th>
+              <Th>{A.person}</Th>
+              <Th>{A.joined}</Th>
+              <Th>{A.roleAccess}</Th>
             </tr>
           </thead>
           <tbody>
@@ -47,13 +54,13 @@ export default async function AdminUsersPage() {
                 <Td>
                   <p className="font-medium">
                     {p.full_name ?? p.email}
-                    {p.role === "pending" ? <Badge tone="warn" className="ml-2">Needs role</Badge> : null}
+                    {p.role === "pending" ? <Badge tone="warn" className="ml-2">{A.needsRole}</Badge> : null}
                   </p>
                   <p className="text-xs text-muted">
-                    {p.email}, {ROLE_LABELS[p.role as AppRole]}
+                    {p.email}, {t.roles[p.role]}
                   </p>
                 </Td>
-                <Td className="text-muted">{formatDate(p.created_at)}</Td>
+                <Td className="text-muted">{formatDate(p.created_at, L)}</Td>
                 <Td>
                   <RoleForm action={setUserRole.bind(null, p.id)} role={p.role} active={p.is_active} isSelf={p.id === user.id} />
                 </Td>
@@ -64,7 +71,7 @@ export default async function AdminUsersPage() {
       </Panel>
 
       <Panel className="mt-6">
-        <PanelHeader title="Settings" />
+        <PanelHeader title={A.settings} />
         <div className="px-5 py-5">
           <SettingsForm
             action={saveSettings}
@@ -75,23 +82,23 @@ export default async function AdminUsersPage() {
       </Panel>
 
       <Panel className="mt-6">
-        <PanelHeader title="Recent audit activity" description="Every change to customers, suppliers, quotations, orders, users and settings is logged." />
+        <PanelHeader title={A.audit} description={A.auditHint} />
         <Table>
           <thead>
             <tr>
-              <Th>When</Th>
-              <Th>Record</Th>
-              <Th>Change</Th>
-              <Th>By</Th>
+              <Th>{A.when}</Th>
+              <Th>{A.record}</Th>
+              <Th>{A.change}</Th>
+              <Th>{A.by}</Th>
             </tr>
           </thead>
           <tbody>
             {(audit ?? []).map((a) => (
               <Tr key={a.id}>
-                <Td className="text-muted">{new Date(a.at).toLocaleString("en-US")}</Td>
-                <Td>{a.table_name.replace(/_/g, " ")}</Td>
-                <Td className="capitalize">{a.action.toLowerCase()}</Td>
-                <Td className="text-muted">{a.actor_id ? (names.get(a.actor_id) ?? "Unknown") : "System"}</Td>
+                <Td className="text-muted">{new Date(a.at).toLocaleString(L)}</Td>
+                <Td>{A.tables[a.table_name] ?? a.table_name.replace(/_/g, " ")}</Td>
+                <Td>{A.action[a.action] ?? a.action}</Td>
+                <Td className="text-muted">{a.actor_id ? (names.get(a.actor_id) ?? A.unknown) : A.system}</Td>
               </Tr>
             ))}
           </tbody>

@@ -1,8 +1,11 @@
+"use client";
+
 import { Download, FileText, Trash2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { DOCUMENT_CATEGORIES, formatBytes, type DocumentCategory } from "@/lib/documents/shared";
+import { formatBytes, type DocumentCategory } from "@/lib/documents/shared";
 import { deleteDocument } from "@/lib/documents/actions";
 import { formatDate } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 export type DocumentRow = {
   id: string;
@@ -12,8 +15,9 @@ export type DocumentRow = {
   uploaded_at: string;
 };
 
-export function DocumentList({ docs, canDelete, revalidate, empty = "No files yet." }: { docs: DocumentRow[]; canDelete: boolean; revalidate: string; empty?: string }) {
-  if (!docs.length) return <p className="text-sm text-muted">{empty}</p>;
+export function DocumentList({ docs, canDelete, revalidate, empty }: { docs: DocumentRow[]; canDelete: boolean; revalidate: string; empty?: string }) {
+  const t = useT();
+  if (!docs.length) return <p className="text-sm text-muted">{empty ?? t.files.none}</p>;
   return (
     <ul className="flex flex-col divide-y divide-line">
       {docs.map((d) => (
@@ -23,14 +27,14 @@ export function DocumentList({ docs, canDelete, revalidate, empty = "No files ye
             {d.file_name}
           </a>
           <span className="hidden text-xs text-muted sm:inline">
-            {DOCUMENT_CATEGORIES[d.category]}, {formatBytes(d.size_bytes)}, {formatDate(d.uploaded_at)}
+            {t.files.category[d.category]}, {formatBytes(d.size_bytes)}, {formatDate(d.uploaded_at, t.localeTag)}
           </span>
-          <a href={`/documents/${d.id}/download`} className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={`Download ${d.file_name}`}>
+          <a href={`/documents/${d.id}/download`} className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={t.files.download(d.file_name)}>
             <Download />
           </a>
           {canDelete ? (
             <form action={deleteDocument.bind(null, d.id, revalidate)}>
-              <button type="submit" className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={`Delete ${d.file_name}`}>
+              <button type="submit" className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={t.files.delete(d.file_name)}>
                 <Trash2 />
               </button>
             </form>

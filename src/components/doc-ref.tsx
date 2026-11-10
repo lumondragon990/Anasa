@@ -1,4 +1,7 @@
+"use client";
+
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Renders an ANASA document number as its readable parts, e.g.
@@ -6,16 +9,9 @@ import { cn } from "@/lib/utils";
  * the meaning, so they get the emphasis; the prefix and year step back.
  * The full number stays as one copyable string for search and screen readers.
  */
-const TYPE_LABEL: Record<string, string> = {
-  Q: "Quotation",
-  P: "Sales order",
-  REQ: "Request",
-  SRFQ: "Supplier RFQ",
-  SPO: "Supplier PO",
-  SVC: "Service job",
-};
 
 export function DocRef({ value, size = "md", className }: { value: string; size?: "sm" | "md" | "lg"; className?: string }) {
+  const t = useT();
   const parts = value.split("-");
   const standard = /^ANA-[A-Z0-9]{2,6}-(Q|P)-\d{4}-\d{4,}$/.test(value) || /^ANA-(REQ|SRFQ|SPO|SVC)-\d{4}-\d{5,}$/.test(value);
   if (!standard) {
@@ -39,7 +35,7 @@ export function DocRef({ value, size = "md", className }: { value: string; size?
   return (
     <span
       className={cn("inline-flex items-baseline whitespace-nowrap font-medium tabular-nums", sizes[size], className)}
-      title={`${TYPE_LABEL[type] ?? "Document"} ${value}`}
+      title={`${t.docRef[type] ?? t.docRef.other} ${value}`}
     >
       <span className="sr-only">{value}</span>
       <span aria-hidden className="text-muted">{prefix}</span>

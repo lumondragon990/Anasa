@@ -1,3 +1,6 @@
+"use client";
+
+import { useT } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "accent" | "ok" | "warn" | "danger";
@@ -37,16 +40,15 @@ const STATUS_TONE: Record<string, Tone> = {
   open: "accent",
   po_mismatch_review: "danger",
   received: "accent",
+  unpaid: "warn",
+  partially_paid: "accent",
+  paid: "ok",
   selected: "ok",
   not_selected: "neutral",
   withdrawn: "neutral",
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const label = status === "po_mismatch_review" ? "PO mismatch: review required" : status.replace(/_/g, " ");
-  return (
-    <Badge tone={STATUS_TONE[status] ?? "neutral"} className="capitalize">
-      {label}
-    </Badge>
-  );
+  const t = useT();
+  return <Badge tone={STATUS_TONE[status] ?? "neutral"}>{t.status[status] ?? status.replace(/_/g, " ")}</Badge>;
 }
